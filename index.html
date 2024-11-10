@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pixel Pattern Generator</title>
+<style>
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    background-color: #ffffff;
+    font-family: Arial, sans-serif;
+    color: #333;
+    flex-direction: column;
+    align-items: center;
+  }
+  .controls {
+    margin-top: 10px;
+    display: grid;
+    grid-template-columns: auto auto;
+    gap: 5px;
+    max-width: 320px;
+    text-align: left;
+  }
+  .controls label {
+    font-size: 0.9em;
+    text-align: left;
+  }
+  .controls input[type="number"],
+  .controls input[type="color"],
+  .controls input[type="range"] {
+    padding: 5px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    width: 100%;
+    height: 30px;
+  }
+  .controls button {
+    grid-column: span 2;
+    padding: 8px;
+    background-color: #007BFF;
+    color: white;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    margin-top: 5px;
+    font-size: 1em;
+    height: 40px;
+  }
+  .controls button:hover {
+    background-color: #0056b3;
+  }
+  #svgContainer {
+    margin-top: 10px;
+    border: 1px solid #ccc;
+    background-color: white;
+  }
+</style>
+</head>
+<body>
+
+<div id="svgContainer"></div>
+
+<div class="controls">
+  <label for="size">Grid Size:</label>
+  <input type="number" id="size" value="10" min="5" max="100">
+  
+  <label for="color">Color:</label>
+  <input type="color" id="color" value="#8000ff">
+
+  <label for="width">Width (px):</label>
+  <input type="number" id="width" value="400" min="100" max="1000">
+
+  <label for="height">Height (px):</label>
+  <input type="number" id="height" value="400" min="100" max="1000">
+  
+  <label for="density">Density (%):</label>
+  <input type="range" id="density" value="50" min="0" max="100">
+
+  <label for="fillArea">Fill Area:</label>
+  <input type="range" id="fillArea" value="100" min="0" max="100">
+
+  <label for="edgeFill">Edge Fill:</label>
+  <input type="range" id="edgeFill" value="0" min="0" max="100">
+  
+  <label for="speed">Animation Speed:</label>
+  <input type="range" id="speed" value="500" min="100" max="1000" step="50">
+  
+  <button onclick="generateGrid()">Generate</button>
+  <button onclick="toggleAnimation()">Toggle Animation</button>
+  <button onclick="downloadSVG()">Download SVG</button>
+  <button onclick="downloadPNG()">Download PNG</button>
+</div>
+
+<script>
+  let animationInterval;
+
+  function generateGrid() {
+    const gridSize = parseInt(document.getElementById('size').value);
+    const cellColor = document.getElementById('color').value;
+    let fieldWidth = parseInt(document.getElementById('width').value);
+    let fieldHeight = parseInt(document.getElementById('height').value);
+    const fillDensity = parseInt(document.getElementById('density').value) / 100;
+    const fillAreaValue = parseInt(document.getElementById('fillArea').value);
+    const edgeFillValue = parseInt(document.getElementById('edgeFill').value);
+    const svgContainer = document.getElementById('svgContainer');
+
+    // Очистка контейнера для нового SVG
+    svgContainer.innerHTML = '';
+
+    // Вычисляем размер квадратной ячейки, чтобы покрыть всю область
+    const cellSize = Math.floor(Math.min(fieldWidth / gridSize, fieldHeight / gridSize));
+    const cols = Math.ceil(fieldWidth / cellSize);
+    const rows = Math.ceil(fieldHeight / cellSize);
+
+    // Корректируем ширину и высоту SVG, чтобы они были кратны cellSize
+    fieldWidth = cols * cellSize;
+    fieldHeight = rows * cellSize;
+
+    // Создание SVG-элемента с shape-rendering для отключения сглаживания
+    const svgNS = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(svgNS, "svg");
+    svg.setAttribute("width", fieldWidth);
+    svg.setAttribute("height", fieldHeight);
+    svg.setAttribute("viewBox", `0 0 ${fieldWidth} ${fieldHeight}`);
+    svg.setAttribute("shape-rendering", "crispEdges"); // Отключение сглаживания
+    svgContainer.appendChild(svg);
+
+    // Вычисляем количество слоёв для заполнения
+    const maxLayers = Math.ceil(gridSize / 2); // Максимальное количество слоёв
+    const fillLayers = fillAreaValue > 0 ? Math.ceil((fillAreaValue / 100) * maxLayers) : 0;
+    const edgeLayers = Math.ceil((edgeFillValue / 100) * maxLayers);
+
+    // Функция для проверки условий заполнения ячейки
+    function shouldFillCell(row, col) {
+      const centerRow = Math.floor(rows / 2);
+      const centerCol = Math.floor(cols / 2);
+
+      // Заполнение краёв
+      const edgeCondition = 
+        row < edgeLayers || col < edgeLayers ||
+        row >= rows - edgeLayers || col >= cols - edgeLayers;
+
+      // Заполнение центра (активируется только если fillAreaValue > 0)
+      const centerCondition = fillAreaValue > 0 &&
+        row >= centerRow - fillLayers &&
+        row <= centerRow + fillLayers &&
+        col >= centerCol - fillLayers &&
+        col <= centerCol + fillLayers;
+
+      return edgeCondition || centerCondition;
+    }
+
+    // Генерация сетки с учётом плотности и условий заполнения области
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++) {
+        if (shouldFillCell(row, col) && Math.random() < fillDensity) {
+          const rect = document.createElementNS(svgNS, "rect");
+          rect.setAttribute("x", col * cellSize);
+          rect.setAttribute("y", row * cellSize);
+          rect.setAttribute("width", cellSize + 0.5); // Увеличение ширины
+          rect.setAttribute("height", cellSize + 0.5); // Увеличение высоты
+          rect.setAttribute("fill", cellColor);
+          svg.appendChild(rect);
+        }
+      }
+    }
+  }
+
+  function toggleAnimation() {
+    if (animationInterval) {
+      clearInterval(animationInterval);
+      animationInterval = null;
+    } else {
+      const speed = parseInt(document.getElementById('speed').value);
+      animationInterval = setInterval(generateGrid, speed);
+    }
+  }
+
+  function downloadSVG() {
+    const svg = document.querySelector("#svgContainer svg");
+    const serializer = new XMLSerializer();
+    const svgBlob = new Blob([serializer.serializeToString(svg)], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(svgBlob);
+    
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "pixel_pattern.svg";
+    link.click();
+    
+    URL.revokeObjectURL(url);
+  }
+
+  function downloadPNG() {
+    const svg = document.querySelector("#svgContainer svg");
+    const serializer = new XMLSerializer();
+    const svgData = serializer.serializeToString(svg);
+    const svgBlob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(svgBlob);
+    
+    const img = new Image();
+    img.onload = function () {
+      const canvas = document.createElement("canvas");
+      canvas.width = svg.getAttribute("width");
+      canvas.height = svg.getAttribute("height");
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0);
+
+      // Скачивание PNG
+      canvas.toBlob(function(blob) {
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "pixel_pattern.png";
+        link.click();
+        URL.revokeObjectURL(link.href);
+      }, "image/png");
+      
+      URL.revokeObjectURL(url);
+    };
+    
+    img.src = url;
+  }
+
+  // Генерация начальной сетки
+  generateGrid();
+</script>
+
+</body>
+</html>
