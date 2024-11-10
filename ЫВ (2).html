@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pixel Pattern Generator</title>
+<style>
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 0;
+    background-color: #f4f4f9;
+    font-family: Arial, sans-serif;
+    color: #333;
+  }
+  #patternDisplay {
+    margin-top: 20px;
+    background-color: #ffffff;
+    border: 1px solid #ccc;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .container {
+    background: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+    width: 720px;
+    max-width: 100%;
+    margin-top: 20px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  h1 {
+    grid-column: span 2;
+    font-size: 1.5em;
+    text-align: center;
+    color: #007BFF;
+    margin: 0 0 20px;
+  }
+  .controls {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+  }
+  .color-section, .control-group {
+    background: #f9f9fb;
+    border-radius: 5px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .color-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.9em;
+    color: #007BFF;
+    font-weight: bold;
+  }
+  .color-container, .button-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .color-picker {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .button-group button {
+    width: 160px;
+    padding: 10px;
+    font-size: 0.9em;
+    font-weight: bold;
+    color: white;
+    background-color: #007BFF;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  .button-group button:hover {
+    background-color: #0056b3;
+  }
+  .color-picker input[type="color"] {
+    height: 30px;
+    width: 30px;
+  }
+  .control-group input[type="number"], .control-group input[type="range"] {
+    width: 100%;
+    padding: 6px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    font-size: 0.9em;
+  }
+</style>
+</head>
+<body>
+
+<div id="patternDisplay">
+  <svg id="svgContainer"></svg>
+</div>
+
+<div class="container">
+  <h1>Pixel Pattern Generator</h1>
+
+  <div class="controls">
+    <div class="color-section">
+      <div class="color-header">
+        Colors
+        <button onclick="addColor()">+ Add Color</button>
+      </div>
+      <div id="colorContainer" class="color-container">
+        <div class="color-picker">
+          <input type="color" value="#8000ff" onchange="generateGrid()">
+          <button onclick="removeColor(this)">Remove</button>
+        </div>
+      </div>
+      <div class="button-group">
+        <button onclick="generateGrid()">Generate</button>
+        <button onclick="toggleAnimation()">Animate</button>
+        <button onclick="downloadSVG()">Download SVG</button>
+        <button onclick="downloadPNG()">Download PNG</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="control-group">
+      <label for="size">Grid Size:</label>
+      <input type="number" id="size" value="10" min="5" max="100" onchange="generateGrid()">
+    </div>
+    
+    <div class="control-group">
+      <label for="width">Width (px):</label>
+      <input type="number" id="width" value="600" min="100" max="1000" onchange="generateGrid()">
+    </div>
+
+    <div class="control-group">
+      <label for="height">Height (px):</label>
+      <input type="number" id="height" value="300" min="100" max="1000" onchange="generateGrid()">
+    </div>
+
+    <div class="control-group">
+      <label for="density">Density (%):</label>
+      <input type="range" id="density" value="50" min="0" max="100" oninput="generateGrid()">
+    </div>
+
+    <div class="control-group">
+      <label for="fillArea">Fill Area:</label>
+      <input type="range" id="fillArea" value="100" min="0" max="100" oninput="generateGrid()">
+    </div>
+
+    <div class="control-group">
+      <label for="edgeFill">Edge Fill:</label>
+      <input type="range" id="edgeFill" value="0" min="0" max="100" oninput="generateGrid()">
+    </div>
+    
+    <div class="control-group">
+      <label for="speed">Animation Speed (ms):</label>
+      <input type="range" id="speed" value="500" min="100" max="1000" step="50" oninput="updateAnimationSpeed()">
+    </div>
+  </div>
+</div>
+
+<script>
+  let animationInterval;
+
+  function addColor() {
+    const colorContainer = document.getElementById('colorContainer');
+    const colorPicker = document.createElement('div');
+    colorPicker.className = 'color-picker';
+    colorPicker.innerHTML = `
+      <input type="color" value="#0000ff" onchange="generateGrid()">
+      <button onclick="removeColor(this)">Remove</button>
+    `;
+    colorContainer.appendChild(colorPicker);
+    generateGrid();
+  }
+
+  function removeColor(button) {
+    button.parentElement.remove();
+    generateGrid();
+  }
+
+  function getColors() {
+    const colorPickers = document.querySelectorAll('#colorContainer input[type="color"]');
+    return Array.from(colorPickers).map(colorPicker => colorPicker.value);
+  }
+
+  function generateGrid() {
+    const gridSize = parseInt(document.getElementById('size').value);
+    const colors = getColors();
+    let fieldWidth = parseInt(document.getElementById('width').value);
+    let fieldHeight = parseInt(document.getElementById('height').value);
+    const fillDensity = parseInt(document.getElementById('density').value) / 100;
+    const fillAreaValue = parseInt(document.getElementById('fillArea').value);
+    const edgeFillValue = parseInt(document.getElementById('edgeFill').value);
+    const svgContainer = document.getElementById('svgContainer');
+
+    svgContainer.innerHTML = '';
+    svgContainer.setAttribute("width", fieldWidth);
+    svgContainer.setAttribute("height", fieldHeight);
+    svgContainer.setAttribute("viewBox", `0 0 ${fieldWidth} ${fieldHeight}`);
+    svgContainer.setAttribute("shape-rendering", "crispEdges");
+
+    const cellSize = Math.floor(Math.min(fieldWidth / gridSize, fieldHeight / gridSize));
+    const cols = Math.ceil(fieldWidth / cellSize);
+    const rows = Math.ceil(fieldHeight / cellSize);
+
+    const maxLayers = Math.ceil(gridSize / 2);
+    const fillLayers = fillAreaValue > 0 ? Math.ceil((fillAreaValue / 100) * maxLayers) : -1;
+    const edgeLayers = Math.ceil((edgeFillValue / 100) * maxLayers);
+
+    function shouldFillCell(row, col) {
+      const centerRow = Math.floor(rows / 2);
+      const centerCol = Math.floor(cols / 2);
+
+      const edgeCondition = row < edgeLayers || col < edgeLayers || row >= rows - edgeLayers || col >= cols - edgeLayers;
+      const centerCondition = fillLayers > 0 &&
+        row >= centerRow - fillLayers && row <= centerRow + fillLayers &&
+        col >= centerCol - fillLayers && col <= centerCol + fillLayers;
+
+      return edgeCondition || centerCondition;
+    }
+
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++) {
+        if (shouldFillCell(row, col) && Math.random() < fillDensity) {
+          const color = colors[Math.floor(Math.random() * colors.length)];
+          const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+          rect.setAttribute("x", col * cellSize);
+          rect.setAttribute("y", row * cellSize);
+          rect.setAttribute("width", cellSize);
+          rect.setAttribute("height", cellSize);
+          rect.setAttribute("fill", color);
+          svgContainer.appendChild(rect);
+        }
+      }
+    }
+  }
+
+  function toggleAnimation() {
+    if (animationInterval) {
+      clearInterval(animationInterval);
+      animationInterval = null;
+    } else {
+      startAnimation();
+    }
+  }
+
+  function startAnimation() {
+    const speed = parseInt(document.getElementById('speed').value);
+    animationInterval = setInterval(generateGrid, speed);
+  }
+
+  function updateAnimationSpeed() {
+    if (animationInterval) {
+      clearInterval(animationInterval);
+      startAnimation();
+    }
+  }
+
+  function downloadSVG() {
+    const serializer = new XMLSerializer();
+    const svgBlob = new Blob([serializer.serializeToString(document.getElementById('svgContainer'))], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(svgBlob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "pixel_pattern.svg";
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function downloadPNG() {
+    const serializer = new XMLSerializer();
+    const svgData = serializer.serializeToString(document.getElementById('svgContainer'));
+    const svgBlob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(svgBlob);
+    
+    const img = new Image();
+    img.onload = function () {
+      const canvas = document.createElement("canvas");
+      canvas.width = document.getElementById('svgContainer').getAttribute("width");
+      canvas.height = document.getElementById('svgContainer').getAttribute("height");
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0);
+
+      canvas.toBlob(function(blob) {
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "pixel_pattern.png";
+        link.click();
+        URL.revokeObjectURL(link.href);
+      }, "image/png");
+      URL.revokeObjectURL(url);
+    };
+    img.src = url;
+  }
+
+  window.onload = generateGrid;
+</script>
+
+</body>
+</html>
